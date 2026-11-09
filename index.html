@@ -9,7 +9,9 @@
   label { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   input[type=text] { width: 4ch; }
   #file { max-width: 100%; }
-  #preview { width: 96px; height: 144px; border: 1px solid #ccc; image-rendering: pixelated; background: #eee; }
+  #previews:not([hidden]) { display: flex; flex-wrap: wrap; gap: 12px; }
+  figure { margin: 0; }
+  canvas { display: block; width: 96px; height: 144px; border: 1px solid #ccc; image-rendering: pixelated; background: #eee; }
   #status { margin: 0; }
 </style>
 </head>
@@ -18,7 +20,10 @@
   <label>Skin PNG <input id="file" type="file" accept=".png,image/png"></label>
   <label>Number (0–100) <input id="number" type="text" inputmode="numeric" maxlength="3" value="1"></label>
   <label>Color <input id="color" type="color" value="#ffffff"></label>
-  <canvas id="preview" width="8" height="12" aria-label="Chest preview" hidden></canvas>
+  <div id="previews" hidden>
+    <figure><canvas id="front" width="8" height="12" aria-label="Front preview"></canvas><figcaption>Front</figcaption></figure>
+    <figure><canvas id="back" width="8" height="12" aria-label="Back preview"></canvas><figcaption>Back</figcaption></figure>
+  </div>
   <button id="download" type="button" disabled>Download PNG</button>
   <p id="status" role="status"></p>
 </main>
@@ -34,6 +39,7 @@ const font = [
 const output = document.createElement('canvas');
 output.width = output.height = 64;
 const ctx = output.getContext('2d');
+const torsoFaces = {front: 20, back: 32};
 let source, name, request = 0, currentNumber = null;
 
 function stamp(number) {
@@ -45,11 +51,13 @@ function stamp(number) {
 
 function addNumber(ctx, number, color) {
   const rows = stamp(number);
-  const x = 20 + Math.floor((8 - rows[0].length) / 2);
+  const offset = Math.floor((8 - rows[0].length) / 2);
   ctx.fillStyle = color;
-  rows.forEach((row, j) => [...row].forEach((pixel, i) => {
-    if (pixel === '1') ctx.fillRect(x + i, 39 + j, 1, 1);
-  }));
+  for (const x of Object.values(torsoFaces)) {
+    rows.forEach((row, j) => [...row].forEach((pixel, i) => {
+      if (pixel === '1') ctx.fillRect(x + offset + i, 39 + j, 1, 1);
+    }));
+  }
 }
 
 function expandLegacy(ctx, bitmap) {
@@ -74,16 +82,18 @@ function render() {
   $('download').disabled = !source || currentNumber === null;
   $('status').textContent = currentNumber === null ? 'Enter a whole number from 0 to 100.' :
     source?.height === 32 ? 'This older skin will download as a 64 × 64 PNG with a jacket layer.' : '';
-  $('preview').hidden = !source;
+  $('previews').hidden = !source;
   if (!source) return;
   ctx.clearRect(0, 0, 64, 64);
   ctx.drawImage(source, 0, 0);
   if (source.height === 32) expandLegacy(ctx, source);
   if (currentNumber !== null) addNumber(ctx, currentNumber, $('color').value);
-  const preview = $('preview').getContext('2d');
-  preview.clearRect(0, 0, 8, 12);
-  preview.drawImage(output, 20, 20, 8, 12, 0, 0, 8, 12);
-  preview.drawImage(output, 20, 36, 8, 12, 0, 0, 8, 12);
+  for (const [id, x] of Object.entries(torsoFaces)) {
+    const preview = $(id).getContext('2d');
+    preview.clearRect(0, 0, 8, 12);
+    preview.drawImage(output, x, 20, 8, 12, 0, 0, 8, 12);
+    preview.drawImage(output, x, 36, 8, 12, 0, 0, 8, 12);
+  }
 }
 
 async function load(file) {
