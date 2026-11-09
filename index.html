@@ -18,7 +18,7 @@
 <body>
 <main>
   <label>Skin PNG <input id="file" type="file" accept=".png,image/png"></label>
-  <label>Number (0–100) <input id="number" type="text" inputmode="numeric" maxlength="3" value="1"></label>
+  <label>Number (1–100) <input id="number" type="text" inputmode="numeric" maxlength="3" value="1"></label>
   <label>Color <input id="color" type="color" value="#ffffff"></label>
   <div id="previews" hidden>
     <figure><canvas id="front" width="16" height="32" aria-label="Full skin from the front"></canvas><figcaption>Front</figcaption></figure>
@@ -108,12 +108,16 @@ function drawPreview(preview, side, arm) {
   }
 }
 
+function parseNumber(value) {
+  const raw = value.trim();
+  return /^(?:[1-9][0-9]?|100)$/.test(raw) ? raw : null;
+}
+
 function render() {
-  const raw = $('number').value.trim();
-  currentNumber = /^(?:[0-9]{1,2}|100)$/.test(raw) ? String(Number(raw)) : null;
+  currentNumber = parseNumber($('number').value);
   $('number').setAttribute('aria-invalid', String(currentNumber === null));
   $('download').disabled = !source || currentNumber === null;
-  $('status').textContent = currentNumber === null ? 'Enter a whole number from 0 to 100.' :
+  $('status').textContent = currentNumber === null ? 'Enter a whole number from 1 to 100.' :
     source?.height === 32 ? 'This older skin will download as a 64 × 64 PNG with a jacket layer.' : '';
   $('previews').hidden = !source;
   if (!source) return;
