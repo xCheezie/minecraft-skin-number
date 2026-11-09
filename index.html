@@ -11,7 +11,7 @@
   #file { max-width: 100%; }
   #previews:not([hidden]) { display: flex; flex-wrap: wrap; gap: 12px; }
   figure { margin: 0; }
-  canvas { display: block; width: 96px; height: 144px; border: 1px solid #ccc; image-rendering: pixelated; background: #eee; }
+  canvas { display: block; width: 96px; height: 192px; border: 1px solid #ccc; image-rendering: pixelated; background: #eee; }
   #status { margin: 0; }
 </style>
 </head>
@@ -21,8 +21,8 @@
   <label>Number (0–100) <input id="number" type="text" inputmode="numeric" maxlength="3" value="1"></label>
   <label>Color <input id="color" type="color" value="#ffffff"></label>
   <div id="previews" hidden>
-    <figure><canvas id="front" width="8" height="12" aria-label="Front preview"></canvas><figcaption>Front</figcaption></figure>
-    <figure><canvas id="back" width="8" height="12" aria-label="Back preview"></canvas><figcaption>Back</figcaption></figure>
+    <figure><canvas id="front" width="16" height="32" aria-label="Full skin from the front"></canvas><figcaption>Front</figcaption></figure>
+    <figure><canvas id="back" width="16" height="32" aria-label="Full skin from the back"></canvas><figcaption>Back</figcaption></figure>
   </div>
   <button id="download" type="button" disabled>Download PNG</button>
   <p id="status" role="status"></p>
@@ -38,7 +38,7 @@ const font = [
 ];
 const output = document.createElement('canvas');
 output.width = output.height = 64;
-const ctx = output.getContext('2d');
+const ctx = output.getContext('2d', { willReadFrequently: true });
 const torsoFaces = {front: 20, back: 32};
 let source, name, request = 0, currentNumber = null;
 
@@ -75,6 +75,39 @@ function expandLegacy(ctx, bitmap) {
   }
 }
 
+function armWidth(ctx) {
+  function empty(x, y) {
+    const pixels = ctx.getImageData(x, y, 2, 12).data;
+    return !pixels.some((value, index) => index % 4 === 3 && value !== 0);
+  }
+  return empty(54, 20) && empty(46, 52) ? 3 : 4;
+}
+
+function drawPreview(preview, side, arm) {
+  const back = side === 'back';
+  const rightArm = back ? 12 : 4 - arm;
+  const leftArm = back ? 4 - arm : 12;
+  const armFace = back ? 8 + arm : 4;
+  const rightLeg = back ? 8 : 4;
+  const leftLeg = back ? 4 : 8;
+  const legFace = back ? 12 : 4;
+  const torso = torsoFaces[side];
+  const head = back ? 24 : 8;
+  const pieces = [
+    [head, 8, head + 32, 8, 8, 8, 4, 0],
+    [torso, 20, torso, 36, 8, 12, 4, 8],
+    [40 + armFace, 20, 40 + armFace, 36, arm, 12, rightArm, 8],
+    [32 + armFace, 52, 48 + armFace, 52, arm, 12, leftArm, 8],
+    [legFace, 20, legFace, 36, 4, 12, rightLeg, 20],
+    [16 + legFace, 52, legFace, 52, 4, 12, leftLeg, 20]
+  ];
+  preview.clearRect(0, 0, 16, 32);
+  for (const [x, y, outerX, outerY, w, h, dx, dy] of pieces) {
+    preview.drawImage(output, x, y, w, h, dx, dy, w, h);
+    preview.drawImage(output, outerX, outerY, w, h, dx, dy, w, h);
+  }
+}
+
 function render() {
   const raw = $('number').value.trim();
   currentNumber = /^(?:[0-9]{1,2}|100)$/.test(raw) ? String(Number(raw)) : null;
@@ -88,12 +121,8 @@ function render() {
   ctx.drawImage(source, 0, 0);
   if (source.height === 32) expandLegacy(ctx, source);
   if (currentNumber !== null) addNumber(ctx, currentNumber, $('color').value);
-  for (const [id, x] of Object.entries(torsoFaces)) {
-    const preview = $(id).getContext('2d');
-    preview.clearRect(0, 0, 8, 12);
-    preview.drawImage(output, x, 20, 8, 12, 0, 0, 8, 12);
-    preview.drawImage(output, x, 36, 8, 12, 0, 0, 8, 12);
-  }
+  const arm = source.height === 32 ? 4 : armWidth(ctx);
+  for (const side of Object.keys(torsoFaces)) drawPreview($(side).getContext('2d'), side, arm);
 }
 
 async function load(file) {
